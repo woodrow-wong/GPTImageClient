@@ -3,20 +3,33 @@ Usage example for GPTImageClient.
 
 Set environment variables:
     CODEX_API_KEY  - Your Codex proxy API key
-    CODEX_BASE_URL - Your Codex proxy base URL (optional, defaults to OpenAI)
+    CODEX_BASE_URL - Your Codex proxy base URL
 
 Or pass them directly to GPTImageClient(api_key=..., base_url=...).
 """
 
 import os
+import sys
 from gpt_image_client import GPTImageClient
 
 
 def main():
-    client = GPTImageClient(
-        api_key=os.environ.get("CODEX_API_KEY", "your-api-key-here"),
-        base_url=os.environ.get("CODEX_BASE_URL", "https://api.openai.com"),
-    )
+    api_key = os.environ.get("CODEX_API_KEY", "")
+    base_url = os.environ.get("CODEX_BASE_URL", "")
+
+    if not api_key:
+        print("ERROR: CODEX_API_KEY environment variable is not set.")
+        print('  $env:CODEX_API_KEY = "your-api-key"')
+        print("  Or edit this script and pass api_key=... directly.")
+        sys.exit(1)
+
+    if not base_url:
+        print("ERROR: CODEX_BASE_URL environment variable is not set.")
+        print('  $env:CODEX_BASE_URL = "https://your-codex-proxy.com"')
+        print("  Or edit this script and pass base_url=... directly.")
+        sys.exit(1)
+
+    client = GPTImageClient(api_key=api_key, base_url=base_url)
 
     # ── 1. Text-to-image generation ─────────────────────────────────────
     print("Generating images...")

@@ -6,7 +6,15 @@ from typing import Optional, List, Literal, Union
 from dataclasses import dataclass
 
 import requests
-from openai import OpenAI, APIError, APIConnectionError, RateLimitError, APITimeoutError
+from openai import (
+    OpenAI,
+    APIError,
+    APIConnectionError,
+    RateLimitError,
+    APITimeoutError,
+    AuthenticationError,
+    NotFoundError,
+)
 
 
 @dataclass
@@ -203,6 +211,17 @@ class GPTImageClient:
             try:
                 result = fn()
                 return extractor(result) if extractor else result
+            except AuthenticationError as e:
+                raise RuntimeError(
+                    f"Authentication failed (401). Check your CODEX_API_KEY. "
+                    f"Detail: {e}"
+                ) from e
+            except NotFoundError as e:
+                raise RuntimeError(
+                    f"Endpoint or model not found (404). "
+                    f"Check CODEX_BASE_URL and model name. "
+                    f"Detail: {e}"
+                ) from e
             except RETRYABLE_ERRORS as e:
                 last_error = e
                 if attempt < max_retries - 1:
