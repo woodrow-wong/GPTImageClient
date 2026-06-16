@@ -151,8 +151,9 @@ class GPTImageClient:
             "size": size,
             "response_format": response_format,
         }
-        if model == "gpt-image-2" or "dall-e-3" in model:
+        if quality and quality != "standard":
             payload["quality"] = quality
+        if style and style != "vivid":
             payload["style"] = style
         if user:
             payload["user"] = user
