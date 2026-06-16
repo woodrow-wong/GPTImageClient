@@ -6,15 +6,6 @@ from typing import Optional, List, Literal, Union
 from dataclasses import dataclass
 
 import requests
-from openai import (
-    OpenAI,
-    APIError,
-    APIConnectionError,
-    RateLimitError,
-    APITimeoutError,
-    AuthenticationError,
-    NotFoundError,
-)
 
 
 @dataclass
@@ -37,23 +28,10 @@ class GeneratedImage:
         return path
 
 
-def _to_generated_images(images) -> List[GeneratedImage]:
-    return [
-        GeneratedImage(
-            url=getattr(img, "url", None),
-            b64_json=getattr(img, "b64_json", None),
-            revised_prompt=getattr(img, "revised_prompt", None),
-        )
-        for img in images
-    ]
-
-
-RETRYABLE_ERRORS = (APIConnectionError, RateLimitError, APITimeoutError)
-
-
 class GPTImageClient:
     """
-    Client for GPT Image-2 via Codex proxy, backed by the official OpenAI SDK.
+    Client for GPT Image-2 via Codex proxy, using raw HTTP requests
+    for maximum compatibility with proxy/relay services.
     """
 
     DEFAULT_BASE_URL = "https://api.openai.com"
@@ -73,11 +51,79 @@ class GPTImageClient:
                 "API key is required. Set CODEX_API_KEY env var or pass api_key parameter."
             )
 
-        self._client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=self.timeout,
-            max_retries=0,  # we handle retries ourselves for fine-grained control
+    def _headers(self, content_type: str = "application/json") -> dict:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": content_type,
+        }
+
+    def _parse_response(self, data: dict) -> List[GeneratedImage]:
+        return [
+            GeneratedImage(
+                url=item.get("url"),
+                b64_json=item.get("b64_json"),
+                revised_prompt=item.get("revised_prompt"),
+            )
+            for item in data.get("data", [])
+        ]
+
+    def _request(self, method: str, path: str, json_payload: dict = None,
+                 files: dict = None, data: dict = None, max_retries: int = 3) -> List[GeneratedImage]:
+        url = f"{self.base_url}{path}"
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                if files:
+                    resp = requests.request(
+                        method, url,
+                        headers=self._headers(None),
+                        data=data,
+                        files=files,
+                        timeout=self.timeout,
+                    )
+                else:
+                    resp = requests.request(
+                        method, url,
+                        headers=self._headers(),
+                        json=json_payload,
+                        timeout=self.timeout,
+                    )
+
+                if resp.status_code == 401:
+                    raise PermissionError(
+                        f"Authentication failed (401). Check your CODEX_API_KEY. "
+                        f"Response: {resp.text}"
+                    )
+                if resp.status_code == 404:
+                    raise ValueError(
+                        f"Endpoint or model not found (404). "
+                        f"Check CODEX_BASE_URL and model name. Response: {resp.text}"
+                    )
+                if resp.status_code == 429:
+                    last_error = f"Rate limited (429): {resp.text}"
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    continue
+                if not resp.ok:
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    continue
+
+                return self._parse_response(resp.json())
+
+            except requests.exceptions.Timeout:
+                last_error = "Request timed out"
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+            except requests.exceptions.ConnectionError as e:
+                last_error = f"Connection error: {e}"
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+
+        raise RuntimeError(
+            f"Request failed after {max_retries} attempts. Last error: {last_error}"
         )
 
     def generate(
@@ -93,29 +139,25 @@ class GPTImageClient:
         max_retries: int = 3,
     ) -> List[GeneratedImage]:
         """
-        Generate images from a text prompt via OpenAI SDK images.generate().
+        Generate images from a text prompt.
 
         Returns:
             List of GeneratedImage objects.
         """
-        kwargs = dict(
-            model=model,
-            prompt=prompt,
-            n=n,
-            size=size,
-            response_format=response_format,
-        )
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": size,
+            "response_format": response_format,
+        }
         if model == "gpt-image-2" or "dall-e-3" in model:
-            kwargs["quality"] = quality
-            kwargs["style"] = style
+            payload["quality"] = quality
+            payload["style"] = style
         if user:
-            kwargs["user"] = user
+            payload["user"] = user
 
-        return self._retry(
-            lambda: self._client.images.generate(**kwargs),
-            max_retries,
-            extractor=lambda r: _to_generated_images(r.data),
-        )
+        return self._request("POST", "/v1/images/generations", json_payload=payload, max_retries=max_retries)
 
     def edit(
         self,
@@ -130,7 +172,8 @@ class GPTImageClient:
         max_retries: int = 3,
     ) -> List[GeneratedImage]:
         """
-        Edit an existing image via OpenAI SDK images.edit().
+        Edit an existing image based on a prompt.
+        Image must be a square PNG, less than 4MB.
 
         Returns:
             List of GeneratedImage objects.
@@ -139,32 +182,34 @@ class GPTImageClient:
         if not image_path.is_file():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        kwargs = dict(
-            model=model,
-            image=image_path.open("rb"),
-            prompt=prompt,
-            n=n,
-            size=size,
-            response_format=response_format,
-        )
+        form_data = {
+            "model": model,
+            "prompt": prompt,
+            "n": str(n),
+            "size": size,
+            "response_format": response_format,
+        }
+        if user:
+            form_data["user"] = user
+
+        files = {
+            "image": (image_path.name, image_path.open("rb"), "image/png"),
+        }
         if mask_path:
             mask_path = Path(mask_path)
             if not mask_path.is_file():
                 raise FileNotFoundError(f"Mask file not found: {mask_path}")
-            kwargs["mask"] = mask_path.open("rb")
-        if user:
-            kwargs["user"] = user
+            files["mask"] = (mask_path.name, mask_path.open("rb"), "image/png")
 
         try:
-            return self._retry(
-                lambda: self._client.images.edit(**kwargs),
-                max_retries,
-                extractor=lambda r: _to_generated_images(r.data),
+            return self._request(
+                "POST", "/v1/images/edits",
+                data=form_data, files=files,
+                max_retries=max_retries,
             )
         finally:
-            for f in (kwargs.get("image"), kwargs.get("mask")):
-                if f:
-                    f.close()
+            for _, (_, f, _) in files.items():
+                f.close()
 
     def variation(
         self,
@@ -177,7 +222,8 @@ class GPTImageClient:
         max_retries: int = 3,
     ) -> List[GeneratedImage]:
         """
-        Create variations via OpenAI SDK images.create_variation().
+        Create variations of an existing image.
+        Image must be a square PNG, less than 4MB.
 
         Returns:
             List of GeneratedImage objects.
@@ -186,51 +232,27 @@ class GPTImageClient:
         if not image_path.is_file():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        kwargs = dict(
-            model=model,
-            image=image_path.open("rb"),
-            n=n,
-            size=size,
-            response_format=response_format,
-        )
+        form_data = {
+            "model": model,
+            "n": str(n),
+            "size": size,
+            "response_format": response_format,
+        }
         if user:
-            kwargs["user"] = user
+            form_data["user"] = user
+
+        files = {
+            "image": (image_path.name, image_path.open("rb"), "image/png"),
+        }
 
         try:
-            return self._retry(
-                lambda: self._client.images.create_variation(**kwargs),
-                max_retries,
-                extractor=lambda r: _to_generated_images(r.data),
+            return self._request(
+                "POST", "/v1/images/variations",
+                data=form_data, files=files,
+                max_retries=max_retries,
             )
         finally:
-            kwargs["image"].close()
-
-    def _retry(self, fn, max_retries: int, extractor=None):
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                result = fn()
-                return extractor(result) if extractor else result
-            except AuthenticationError as e:
-                raise RuntimeError(
-                    f"Authentication failed (401). Check your CODEX_API_KEY. "
-                    f"Detail: {e}"
-                ) from e
-            except NotFoundError as e:
-                raise RuntimeError(
-                    f"Endpoint or model not found (404). "
-                    f"Check CODEX_BASE_URL and model name. "
-                    f"Detail: {e}"
-                ) from e
-            except RETRYABLE_ERRORS as e:
-                last_error = e
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except APIError as e:
-                raise RuntimeError(f"API error: {e}") from e
-        raise RuntimeError(
-            f"Request failed after {max_retries} attempts: {last_error}"
-        )
+            files["image"][1].close()
 
     def save_all(
         self,
@@ -240,21 +262,12 @@ class GPTImageClient:
     ) -> List[Path]:
         """
         Save all generated images to a directory.
-
-        Args:
-            images: List of GeneratedImage from generate/edit/variation.
-            output_dir: Directory to save images.
-            prefix: Filename prefix.
-
-        Returns:
-            List of saved file paths.
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         paths = []
         for i, img in enumerate(images):
-            ext = ".png"
-            fname = f"{prefix}_{i:03d}{ext}"
+            fname = f"{prefix}_{i:03d}.png"
             path = img.save(output_dir / fname)
             paths.append(path)
         return paths
