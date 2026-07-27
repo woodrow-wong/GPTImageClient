@@ -1,8 +1,9 @@
 import os
 import base64
 import time
+import mimetypes
 from pathlib import Path
-from typing import Optional, List, Literal, Union
+from typing import Optional, List, Literal, Union, Dict, Any
 from dataclasses import dataclass
 
 import requests
@@ -284,6 +285,162 @@ class GPTImageClient:
             )
             all_results.extend(results)
         return all_results
+
+    def _encode_image(self, image_path: Union[str, Path]) -> str:
+        path = Path(image_path)
+        mime_type, _ = mimetypes.guess_type(str(path))
+        if mime_type not in ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"):
+            mime_type = "image/png"
+        data = base64.b64encode(path.read_bytes()).decode("utf-8")
+        return f"data:{mime_type};base64,{data}"
+
+    def chat(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str = "gpt-4o",
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        max_retries: int = 3,
+    ) -> str:
+        """
+        Send a chat completion request. Supports vision when message content
+        includes image_url blocks.
+
+        Args:
+            messages: OpenAI-format chat messages. For images, include:
+                {"role": "user", "content": [
+                    {"type": "text", "text": "..."},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+                ]}
+            model: Chat model name (e.g. gpt-4o).
+            temperature: Sampling temperature.
+            max_tokens: Max tokens in response.
+
+        Returns:
+            The assistant's text reply.
+        """
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        url = f"{self.base_url}/v1/chat/completions"
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                resp = requests.post(
+                    url,
+                    headers=self._headers(),
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                if resp.status_code == 401:
+                    raise PermissionError(
+                        f"Authentication failed (401). Check your CODEX_API_KEY: {resp.text}"
+                    )
+                if resp.status_code == 404:
+                    raise ValueError(
+                        f"Endpoint or model not found (404). Check base_url and model: {resp.text}"
+                    )
+                if resp.status_code == 429:
+                    last_error = f"Rate limited (429)"
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    continue
+                if not resp.ok:
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)
+                    continue
+
+                data = resp.json()
+                return data["choices"][0]["message"]["content"]
+
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                last_error = str(e)
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+
+        raise RuntimeError(
+            f"Chat request failed after {max_retries} attempts. Last error: {last_error}"
+        )
+
+    def extract_outline_description(
+        self,
+        image_paths: List[Union[str, Path]],
+        chat_model: str = "gpt-4o",
+    ) -> str:
+        """
+        Analyze multiple images, extract common compositional elements,
+        and return a description optimized for generating a line-art outline
+        drawing (白描) suitable for gourd carving / traditional craft.
+
+        Args:
+            image_paths: List of image file paths to analyze together.
+            chat_model: Vision-capable chat model to use.
+
+        Returns:
+            A text description of the common scene suitable for outline generation.
+        """
+        content_blocks = [
+            {
+                "type": "text",
+                "text": (
+                    "Please analyze these images together. They are different versions of the same scene. "
+                    "Extract ONLY the elements that are COMMON across ALL images -- the shared composition, "
+                    "core subjects, and essential spatial layout.\n\n"
+                    "Ignore colors, textures, lighting, and details unique to individual versions.\n\n"
+                    "Then output a SINGLE paragraph (in English) that describes this common scene "
+                    "as a LINE ART / OUTLINE DRAWING (白描). The description must be optimized for "
+                    "generating a black-ink outline drawing on white background, suitable for "
+                    "traditional gourd carving art. Focus on:\n"
+                    "- Silhouettes and contours, not shading\n"
+                    "- Clear, simple lines\n"
+                    "- Negative space\n"
+                    "- Essential shapes only, no fine details\n\n"
+                    "Output ONLY the description paragraph, nothing else."
+                ),
+            }
+        ]
+        for p in image_paths:
+            content_blocks.append({
+                "type": "image_url",
+                "image_url": {"url": self._encode_image(p), "detail": "high"},
+            })
+
+        messages = [{"role": "user", "content": content_blocks}]
+        return self.chat(messages, model=chat_model, temperature=0.5)
+
+    def generate_outline(
+        self,
+        description: str,
+        model: str = "gpt-image-2",
+        size: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024",
+        n: int = 1,
+    ) -> List[GeneratedImage]:
+        """
+        Generate a line-art outline drawing from a scene description.
+
+        Args:
+            description: Scene description (e.g. from extract_outline_description()).
+            model: Image generation model.
+            size: Output image size.
+            n: Number of images to generate.
+
+        Returns:
+            List of GeneratedImage objects.
+        """
+        prompt = (
+            f"Black ink line drawing on pure white background. Traditional Chinese 白描 style. "
+            f"Clean outlines, no shading, no color, no grayscale, no hatching. "
+            f"Only black contour lines depicting the scene. "
+            f"The scene: {description}"
+        )
+        return self.generate(prompt=prompt, model=model, n=n, size=size, response_format="b64_json")
 
     def save_all(
         self,
