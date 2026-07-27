@@ -145,10 +145,12 @@ class GPTImageClient:
         Returns:
             List of GeneratedImage objects.
         """
+        if n < 1:
+            raise ValueError("n must be at least 1")
+
         payload = {
             "model": model,
             "prompt": prompt,
-            "n": n,
             "size": size,
             "response_format": response_format,
         }
@@ -159,7 +161,19 @@ class GPTImageClient:
         if user:
             payload["user"] = user
 
-        return self._request("POST", "/v1/images/generations", json_payload=payload, max_retries=max_retries)
+        # Some OpenAI-compatible proxies map this endpoint to the image tool,
+        # which does not accept `n`. Request images individually for portability.
+        images = []
+        for _ in range(n):
+            images.extend(
+                self._request(
+                    "POST",
+                    "/v1/images/generations",
+                    json_payload=payload,
+                    max_retries=max_retries,
+                )
+            )
+        return images
 
     def edit(
         self,
