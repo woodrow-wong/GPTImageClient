@@ -484,9 +484,9 @@ class GPTImageClient:
 
     def _build_outline_prompt(self, description: str) -> str:
         return (
-            "Identity fidelity is the highest priority. Refine the preferred draft using the original Japanese anime "
-            "character references; do not invent or redesign the character. Produce crisp black line art on pure white "
-            "for later hand painting on a gourd. Follow the ordered specification below exactly. "
+            "Refine the preferred Japanese anime line-art draft instead of creating a new composition or redesigning "
+            "the character. Preserve the draft's successful anime feeling and change only identity-inaccurate details "
+            "according to the three original color references. Follow this specification in priority order: "
             f"{description}"
         )
 
@@ -511,12 +511,11 @@ class GPTImageClient:
                 raise FileNotFoundError(f"Reference image not found: {path}")
 
         reference_instructions = (
-            "The six attached images concern one original Japanese anime character. Reference 1 is the preferred "
-            "line-art draft and controls only composition, pose, inscription placement, and general line-art density. "
-            "References 2 and 3 override it for exact face identity, eyes, bangs, expression, hat, earrings, and anime "
-            "style. Reference 4 overrides it for upper-body costume, right-facing head direction, staff, and open-palm "
-            "flower. References 5 and 6 override it for full-body costume, hair, static stance, and water setting. Where "
-            "the preferred draft conflicts with the original color references, always follow the color references. "
+            "Four images are attached. Reference 1 is the preferred line-art draft and must remain the visual and "
+            "compositional base. References 2 and 3 correct only the exact face identity, eyes, bangs, hat, earrings, "
+            "and Japanese anime character style. Reference 4 corrects the upper-body costume, right-facing head "
+            "direction, staff, open-palm flower, and mood. Do not average all references into a new woman. Preserve "
+            "Reference 1 wherever it does not conflict with the original character identity in References 2-4. "
         )
         prompt = reference_instructions + self._build_outline_prompt(description)
         form_data = {
