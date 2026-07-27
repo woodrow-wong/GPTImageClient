@@ -401,7 +401,12 @@ class GPTImageClient:
                     "- Silhouettes and contours, not shading\n"
                     "- Clear, simple lines\n"
                     "- Negative space\n"
-                    "- Essential shapes only, no fine details\n\n"
+                    "- Essential shapes only, no fine details\n"
+                    "- Preserve the stable pose, relative placement, and major gesture lines\n"
+                    "- Use any readable text only as thematic context; do not copy or reproduce text from the references\n"
+                    "- Treat typography, borders, logos, captions, and graphic layout as irrelevant to the visual composition\n"
+                    "- Treat glow, sparkles, fog, reflections, color, and photographic texture as irrelevant\n"
+                    "- Prefer bold, connected contours that remain legible when carved on a small gourd\n\n"
                     "Output ONLY the description paragraph, nothing else."
                 ),
             }
@@ -435,9 +440,18 @@ class GPTImageClient:
             List of GeneratedImage objects.
         """
         prompt = (
-            f"Black ink line drawing on pure white background. Traditional Chinese 白描 style. "
-            f"Clean outlines, no shading, no color, no grayscale, no hatching. "
-            f"Only black contour lines depicting the scene. "
+            f"A clean, high-contrast black-ink reference for hand carving on a gourd. "
+            f"Traditional Chinese baimiao (白描) approach: clear connected contours, restrained interior lines, "
+            f"readable negative space, and simplified shapes suitable for transfer to a small curved surface. "
+            f"Pure white background, black lines only, no gray, no color, no gradients, no shading, no hatching, "
+            f"no glow, no sparkles, no water reflections, and no painterly texture. "
+            f"Do not include any text from the reference images, border, frame, logo, or poster layout. "
+            f"Keep the main figure's silhouette, hat, long hair, flowing dress, staff, and lotus-like flowers clear; "
+            f"remove nonessential ornament and tiny details. Include exactly this Chinese inscription as part of the "
+            f"carving design, with elegant readable calligraphy and no other words: "
+            f"在未名之岸短暂显现的花焰术士，游离于现实与彼岸之间，不解释来处，也不归属于任何一方 "
+            f"Arrange the inscription in balanced negative space so it complements the illustration and remains legible "
+            f"on a curved gourd surface. "
             f"The scene: {description}"
         )
         return self.generate(prompt=prompt, model=model, n=n, size=size, response_format="b64_json")
