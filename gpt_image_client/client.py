@@ -485,7 +485,8 @@ class GPTImageClient:
     def _build_outline_prompt(self, description: str) -> str:
         return (
             "Refine the preferred Japanese anime line-art draft instead of creating a new composition or redesigning "
-            "the character. Preserve the draft's successful anime feeling and change only identity-inaccurate details "
+            "the character. Recompose it only as needed for a moderately wide, full-circumference gourd wraparound "
+            "design. Preserve the draft's successful anime feeling and change only identity-inaccurate details "
             "according to the three original color references. Follow this specification in priority order: "
             f"{description}"
         )

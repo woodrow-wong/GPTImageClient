@@ -1,6 +1,6 @@
 PRIMARY GOAL
 
-Refine the preferred line-art draft without redesigning it. Keep its appealing Japanese anime line-art feeling, quiet mood, staff-and-flower pose, long flowing hair, left-side vertical inscription, and spacious composition. Adapt that same composition naturally to a portrait canvas. Make only the corrections needed for the recipient to recognize her exact original character immediately.
+Refine the preferred line-art draft without redesigning it. Keep its appealing Japanese anime line-art feeling, quiet mood, staff-and-flower pose, long flowing hair, vertical inscription, and spacious composition. Adapt it into a moderately wide panoramic design that represents the gourd body's full circumference unwrapped into one flat image. Make only the corrections needed for the recipient to recognize her exact original character immediately.
 
 REFERENCE PRIORITY
 
@@ -28,13 +28,17 @@ STAFF AND FLOWER
 
 Preserve the slender staff but correct its head toward the original delicate crystal-and-flower structure. The principal flower flame is a translucent fantasy blossom with five to six pointed petals, crystalline veins, a bright center, and only a subtle flame-like aura. It is not a lotus, peony, many-petaled spider lily, Buddhist flame lotus, or ordinary botanical flower. Keep one flower above the open palm and one smaller light at the staff head. Use at most one or two distant echo flowers on slender stems; no floating lotus flowers or lily pads.
 
-BACKGROUND AND LAYOUT
+WRAPAROUND COMPOSITION AND BACKGROUND
 
-Use a portrait composition. Keep the character dominant on the center-right and reserve a clean vertical area on the left for the inscription. The setting is an empty otherworldly shore with sparse water ripples, a low horizon, faint mist contours, and very limited crystalline accents. Do not add mountains, Chinese cloud scrolls, lotus ponds, temple imagery, dense flowers, decorative borders, or poster graphics. Keep the background much lighter and simpler than the character.
+Treat the horizontal canvas as an unwrapped design for the entire circumference of a gourd, not as a single front-facing poster. Establish one primary viewing area with the recognizable full-length character slightly right of center and the vertical inscription in clear space to her left. Extend the same scene naturally toward both outer sides so the rest of the gourd is intentionally covered rather than blank: continue the quiet waterline, sparse ripples, drifting petals, faint mist contours, two or three small distant flower lights on slender stems, and very limited crystalline accents. These secondary elements should create a coherent side-and-back environment without competing with the character.
+
+Design the far left and far right edges as a low-detail transition zone of water ripples and faint mist that can meet naturally when wrapped around the gourd. Do not place the face, hands, staff, principal flower, inscription, or any other identity-critical element at either outer edge or across the likely rear seam. Avoid abrupt cut-off objects. The image should have visual content around the full width while retaining calm negative space between motifs; "filled around the gourd" does not mean dense decoration everywhere.
+
+Do not add mountains, Chinese cloud scrolls, lotus ponds, temple imagery, dense flowers, decorative borders, or poster graphics. Keep the extended environment lighter and simpler than the primary character area.
 
 INSCRIPTION
 
-Preserve the successful vertical calligraphy layout from Reference 1. Include exactly this Chinese text, with correct characters and punctuation, and no other writing:
+Preserve the successful vertical calligraphy treatment from Reference 1, but keep the complete inscription together within the primary viewing area rather than splitting it across the rear seam. Include exactly this Chinese text, with correct characters and punctuation, and no other writing:
 
 在未名之岸短暂显现的花焰术士，游离于现实与彼岸之间，不解释来处，也不归属于任何一方。
 

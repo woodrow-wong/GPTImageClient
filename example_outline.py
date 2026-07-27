@@ -52,7 +52,7 @@ def main():
         print("ERROR: IMAGE_COUNT must be at least 1.")
         sys.exit(1)
 
-    image_size = os.environ.get("IMAGE_SIZE", "1024x1792")
+    image_size = os.environ.get("IMAGE_SIZE", "1792x1024")
     supported_sizes = {"1024x1024", "1792x1024", "1024x1792"}
     if image_size not in supported_sizes:
         print(
