@@ -53,10 +53,10 @@ class GPTImageClient:
             )
 
     def _headers(self, content_type: str = "application/json") -> dict:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": content_type,
-        }
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
 
     def _parse_response(self, data: dict) -> List[GeneratedImage]:
         return [
@@ -456,22 +456,7 @@ class GPTImageClient:
         Returns:
             List of GeneratedImage objects.
         """
-        prompt = (
-            f"A clean, high-contrast black-ink design reference for handmade artwork on a gourd. "
-            f"Traditional Chinese baimiao (白描) approach: clear connected contours, restrained interior lines, "
-            f"readable negative space, and well-defined regions suitable for later hand painting and coloring "
-            f"on a curved surface. Preserve meaningful medium detail; this is not an oversimplified engraving stencil. "
-            f"Pure white background, black lines only, no gray, no color, no gradients, no shading, no hatching, "
-            f"no glow, no sparkles, no water reflections, and no painterly texture. "
-            f"Do not include any text from the reference images, border, frame, logo, or poster layout. "
-            f"Keep the main figure's silhouette, hat, long hair, flowing dress, staff, and lotus-like flowers clear; "
-            f"remove only nonessential micro-detail. Include exactly this Chinese inscription as part of the "
-            f"artwork design, with elegant readable calligraphy and no other words: "
-            f"在未名之岸短暂显现的花焰术士，游离于现实与彼岸之间，不解释来处，也不归属于任何一方 "
-            f"Arrange the inscription in balanced negative space so it complements the illustration and remains legible "
-            f"on a curved gourd surface. "
-            f"The scene: {description}"
-        )
+        prompt = self._build_outline_prompt(description)
         return self.generate(
             prompt=prompt,
             model=model,
@@ -480,6 +465,87 @@ class GPTImageClient:
             response_format="b64_json",
             max_retries=max_retries,
         )
+
+    def _build_outline_prompt(self, description: str) -> str:
+        return (
+            "Create clean black-and-white Japanese anime-style line art of the exact original character described "
+            "below. This is a production drawing for a handmade painted gourd artwork, not a Chinese xianxia or "
+            "historical-costume reinterpretation. Preserve recognizable anime facial proportions, character design, "
+            "costume silhouette, hat, hair, staff, flower-flame motif, and face direction. Use crisp black contours "
+            "on a pure white background with meaningful medium detail and clearly bounded regions for later hand "
+            "painting and coloring. No gray, color, gradients, shading, hatching, glow, sparkles, photographic texture, "
+            "border, frame, logo, watermark, or poster layout. Include exactly this Chinese inscription and no other "
+            "writing: 在未名之岸短暂显现的花焰术士，游离于现实与彼岸之间，不解释来处，也不归属于任何一方. "
+            "Arrange it in balanced negative space without covering the character. Design specification: "
+            f"{description}"
+        )
+
+    def generate_outline_from_references(
+        self,
+        image_paths: List[Union[str, Path]],
+        description: str,
+        model: str = "gpt-image-2",
+        size: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024",
+        n: int = 1,
+        max_retries: int = 1,
+    ) -> List[GeneratedImage]:
+        """Generate identity-preserving line art from multiple character references."""
+        if not image_paths:
+            raise ValueError("At least one reference image is required")
+        if n < 1:
+            raise ValueError("n must be at least 1")
+
+        paths = [Path(path) for path in image_paths]
+        for path in paths:
+            if not path.is_file():
+                raise FileNotFoundError(f"Reference image not found: {path}")
+
+        reference_instructions = (
+            "All attached images depict the same original Japanese anime character. Character identity consistency "
+            "is the highest priority: the recipient must immediately recognize her own character. Do not invent a "
+            "different woman and do not translate the design into Chinese xianxia, wuxia, historical, realistic, or "
+            "Western fantasy style. Preserve the references' youthful anime face shape, eye design, bangs, very long "
+            "black hair, broad dark witch hat with its flower and filigree, fitted dark off-shoulder gown, slender staff, "
+            "and flower flame. Keep the same three-quarter face orientation as the references: her nose and gaze point "
+            "toward the viewer's right. Never mirror or reverse her face. The first image is the primary guide for upper-"
+            "body pose, face direction, open-palm flower, and overall mood. The second and third images are the primary "
+            "guides for exact face identity, eyes, bangs, hat ornament, earrings, and anime rendering. The fourth and "
+            "fifth images guide the full-body silhouette, staff, dress layers, hair length, and water setting. "
+        )
+        prompt = reference_instructions + self._build_outline_prompt(description)
+        form_data = {
+            "model": model,
+            "prompt": prompt,
+            "size": size,
+            "response_format": "b64_json",
+        }
+
+        results = []
+        for _ in range(n):
+            open_files = []
+            files = []
+            try:
+                for path in paths:
+                    mime_type, _ = mimetypes.guess_type(str(path))
+                    if not mime_type or not mime_type.startswith("image/"):
+                        mime_type = "application/octet-stream"
+                    file_obj = path.open("rb")
+                    open_files.append(file_obj)
+                    files.append(("image[]", (path.name, file_obj, mime_type)))
+
+                results.extend(
+                    self._request(
+                        "POST",
+                        "/v1/images/edits",
+                        data=form_data,
+                        files=files,
+                        max_retries=max_retries,
+                    )
+                )
+            finally:
+                for file_obj in open_files:
+                    file_obj.close()
+        return results
 
     def save_all(
         self,
