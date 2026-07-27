@@ -36,8 +36,8 @@ def main():
         "./input/scene_v3.png",
     ]
 
-    chat_model = "gpt-4o"          # vision model for analysis
-    image_model = "gpt-image-2"    # model for outline generation
+    chat_model = "gpt-5.6-sol-max" # vision model for analysis (adjust to your proxy's actual model name)
+    image_model = "gpt-image-2"    # model for outline generation (image models have no reasoning level)
 
     # ── Step 1: Extract common elements via vision analysis ──────────────
     print("Analyzing common elements across images...")
