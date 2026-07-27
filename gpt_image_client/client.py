@@ -255,6 +255,36 @@ class GPTImageClient:
         finally:
             files["image"][1].close()
 
+    def variations_batch(
+        self,
+        image_paths: List[Union[str, Path]],
+        model: str = "gpt-image-2",
+        n: int = 1,
+        size: Literal["1024x1024", "256x256", "512x512"] = "1024x1024",
+        response_format: Literal["url", "b64_json"] = "b64_json",
+        user: Optional[str] = None,
+        max_retries: int = 3,
+    ) -> List[GeneratedImage]:
+        """
+        Create variations for multiple images in batch.
+
+        Returns:
+            List of GeneratedImage objects (all images from all source images).
+        """
+        all_results = []
+        for path in image_paths:
+            results = self.variation(
+                image_path=path,
+                model=model,
+                n=n,
+                size=size,
+                response_format=response_format,
+                user=user,
+                max_retries=max_retries,
+            )
+            all_results.extend(results)
+        return all_results
+
     def save_all(
         self,
         images: List[GeneratedImage],
