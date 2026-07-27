@@ -6,6 +6,7 @@ images with a vision-capable model, then run this script.
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from gpt_image_client import GPTImageClient
@@ -57,7 +58,8 @@ def main():
         timeout=image_timeout,
     )
 
-    output_dir = Path("output")
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path("output") / f"outline_{run_id}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     reference_paths = [
