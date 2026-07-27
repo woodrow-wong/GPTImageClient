@@ -42,13 +42,21 @@ def main():
         print("ERROR: IMAGE_TIMEOUT_SECONDS must be at least 1.")
         sys.exit(1)
 
+    try:
+        image_count = int(os.environ.get("IMAGE_COUNT", "2"))
+    except ValueError:
+        print("ERROR: IMAGE_COUNT must be an integer.")
+        sys.exit(1)
+    if image_count < 1:
+        print("ERROR: IMAGE_COUNT must be at least 1.")
+        sys.exit(1)
+
     client = GPTImageClient(
         api_key=api_key,
         base_url=base_url,
         timeout=image_timeout,
     )
 
-    image_count = 2
     output_dir = Path("output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
