@@ -115,7 +115,7 @@ class GPTImageClient:
                 return self._parse_response(resp.json())
 
             except requests.exceptions.Timeout:
-                last_error = "Request timed out"
+                last_error = f"Request timed out after {self.timeout} seconds"
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
             except requests.exceptions.ConnectionError as e:
@@ -440,6 +440,7 @@ class GPTImageClient:
         model: str = "gpt-image-2",
         size: Literal["1024x1024", "1792x1024", "1024x1792"] = "1024x1024",
         n: int = 1,
+        max_retries: int = 1,
     ) -> List[GeneratedImage]:
         """
         Generate a line-art outline drawing from a scene description.
@@ -449,6 +450,8 @@ class GPTImageClient:
             model: Image generation model.
             size: Output image size.
             n: Number of images to generate.
+            max_retries: Number of attempts per image. Defaults to one to avoid
+                duplicate image jobs when a long-running request times out.
 
         Returns:
             List of GeneratedImage objects.
@@ -469,7 +472,14 @@ class GPTImageClient:
             f"on a curved gourd surface. "
             f"The scene: {description}"
         )
-        return self.generate(prompt=prompt, model=model, n=n, size=size, response_format="b64_json")
+        return self.generate(
+            prompt=prompt,
+            model=model,
+            n=n,
+            size=size,
+            response_format="b64_json",
+            max_retries=max_retries,
+        )
 
     def save_all(
         self,

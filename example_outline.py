@@ -33,17 +33,39 @@ def main():
         print(f"ERROR: {description_path} is empty.")
         sys.exit(1)
 
-    client = GPTImageClient(api_key=api_key, base_url=base_url)
+    try:
+        image_timeout = int(os.environ.get("IMAGE_TIMEOUT_SECONDS", "600"))
+    except ValueError:
+        print("ERROR: IMAGE_TIMEOUT_SECONDS must be an integer.")
+        sys.exit(1)
+    if image_timeout < 1:
+        print("ERROR: IMAGE_TIMEOUT_SECONDS must be at least 1.")
+        sys.exit(1)
 
-    print("Generating outline drawing...")
-    images = client.generate_outline(
-        description=description,
-        model="gpt-image-2",
-        size="1024x1024",
-        n=2,
+    client = GPTImageClient(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=image_timeout,
     )
-    paths = client.save_all(images, output_dir="./output", prefix="outline")
-    for path in paths:
+
+    image_count = 2
+    output_dir = Path("output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for index in range(image_count):
+        print(
+            f"Generating outline drawing {index + 1}/{image_count} "
+            f"(timeout: {image_timeout}s)..."
+        )
+        images = client.generate_outline(
+            description=description,
+            model="gpt-image-2",
+            size="1024x1024",
+            n=1,
+        )
+        if not images:
+            raise RuntimeError("Image API returned no image data.")
+        path = images[0].save(output_dir / f"outline_{index:03d}.png")
         print(f"  Saved: {path}")
     print("Done.")
 
