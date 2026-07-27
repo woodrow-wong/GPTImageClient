@@ -5,6 +5,7 @@ import mimetypes
 from pathlib import Path
 from typing import Optional, List, Literal, Union, Dict, Any
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import requests
 
@@ -50,6 +51,21 @@ class GPTImageClient:
         if not self.api_key:
             raise ValueError(
                 "API key is required. Set CODEX_API_KEY env var or pass api_key parameter."
+            )
+        if self.api_key.startswith(("http://", "https://")):
+            raise ValueError(
+                "API key looks like a URL. Check that CODEX_API_KEY and "
+                "CODEX_BASE_URL were not swapped."
+            )
+
+        parsed_base_url = urlparse(self.base_url)
+        if parsed_base_url.scheme not in ("http", "https") or not parsed_base_url.netloc:
+            hint = ""
+            if self.base_url.startswith(("sk-", "key-")):
+                hint = " It appears to contain an API key; rotate that key before continuing."
+            raise ValueError(
+                "Base URL must be a complete http:// or https:// URL. "
+                "Check CODEX_BASE_URL and do not put an API key there." + hint
             )
 
     def _headers(self, content_type: str = "application/json") -> dict:
@@ -468,15 +484,9 @@ class GPTImageClient:
 
     def _build_outline_prompt(self, description: str) -> str:
         return (
-            "Create clean black-and-white Japanese anime-style line art of the exact original character described "
-            "below. This is a production drawing for a handmade painted gourd artwork, not a Chinese xianxia or "
-            "historical-costume reinterpretation. Preserve recognizable anime facial proportions, character design, "
-            "costume silhouette, hat, hair, staff, flower-flame motif, and face direction. Use crisp black contours "
-            "on a pure white background with meaningful medium detail and clearly bounded regions for later hand "
-            "painting and coloring. No gray, color, gradients, shading, hatching, glow, sparkles, photographic texture, "
-            "border, frame, logo, watermark, or poster layout. Include exactly this Chinese inscription and no other "
-            "writing: 在未名之岸短暂显现的花焰术士，游离于现实与彼岸之间，不解释来处，也不归属于任何一方. "
-            "Arrange it in balanced negative space without covering the character. Design specification: "
+            "Identity fidelity is the highest priority. Refine the preferred draft using the original Japanese anime "
+            "character references; do not invent or redesign the character. Produce crisp black line art on pure white "
+            "for later hand painting on a gourd. Follow the ordered specification below exactly. "
             f"{description}"
         )
 
@@ -501,16 +511,12 @@ class GPTImageClient:
                 raise FileNotFoundError(f"Reference image not found: {path}")
 
         reference_instructions = (
-            "All attached images depict the same original Japanese anime character. Character identity consistency "
-            "is the highest priority: the recipient must immediately recognize her own character. Do not invent a "
-            "different woman and do not translate the design into Chinese xianxia, wuxia, historical, realistic, or "
-            "Western fantasy style. Preserve the references' youthful anime face shape, eye design, bangs, very long "
-            "black hair, broad dark witch hat with its flower and filigree, fitted dark off-shoulder gown, slender staff, "
-            "and flower flame. Keep the same three-quarter face orientation as the references: her nose and gaze point "
-            "toward the viewer's right. Never mirror or reverse her face. The first image is the primary guide for upper-"
-            "body pose, face direction, open-palm flower, and overall mood. The second and third images are the primary "
-            "guides for exact face identity, eyes, bangs, hat ornament, earrings, and anime rendering. The fourth and "
-            "fifth images guide the full-body silhouette, staff, dress layers, hair length, and water setting. "
+            "The six attached images concern one original Japanese anime character. Reference 1 is the preferred "
+            "line-art draft and controls only composition, pose, inscription placement, and general line-art density. "
+            "References 2 and 3 override it for exact face identity, eyes, bangs, expression, hat, earrings, and anime "
+            "style. Reference 4 overrides it for upper-body costume, right-facing head direction, staff, and open-palm "
+            "flower. References 5 and 6 override it for full-body costume, hair, static stance, and water setting. Where "
+            "the preferred draft conflicts with the original color references, always follow the color references. "
         )
         prompt = reference_instructions + self._build_outline_prompt(description)
         form_data = {
